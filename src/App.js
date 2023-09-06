@@ -1,18 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from '!mapbox-gl'; // eslint-disable-line import/no-webpack-loader-syntax
+import {featureEach} from '@turf/turf'
 
 // Main functions
 const mainFunctions = require("./main-functions");
 
 mapboxgl.accessToken = 'pk.eyJ1IjoibHZlcnZhZWtlIiwiYSI6ImNsbHh5eXkxbTI2djczcG1sb2dvNTB5YzEifQ.EyJFvAhhrr5DTj0jcAC-dQ';
-
-const tj = require("@mapbox/togeojson");
-// node doesn't have xml parsing or a dom. use xmldom
-//const DOMParser = require("@xmldom/xmldom").DOMParser;
-//const file = new DOMParser().parseFromString(process.env.PUBLIC_URL + "/mygeodata/Afternoon_Run.gpx", "utf8");
-
-//console.log(file)
-//const conv = tj.gpx(file)
 
 function getPointFeature(coordinates) {
   return {
@@ -85,13 +78,13 @@ export default function App() {
       const gpxFilenamesArray = await mainFunctions.getAllGpxFilenamesDirectory();
 
       // Line source and layer
-      var geojson = {
+      var lines = {
         "type": "FeatureCollection",
         "features": []
       }
 
       // Line
-      map.current.addSource('trace', { type: 'geojson', data: geojson });
+      map.current.addSource('trace', { type: 'geojson', data: lines });
       map.current.addLayer({
         'id': 'trace',
         'type': 'line',
@@ -155,69 +148,43 @@ export default function App() {
         // Save Coordinates for later  
         const coordinates = trackPositions[0];
         if (coordinates.length > maxCoordsLength) { maxCoordsLength = coordinates.length }
-        geojsonsArray.push(geojson)  
+        geojsonsArray.push(lines)  
 
         //add feature to FeatureCollection
-        geojson.features.push(getLineFeature(gpxName, parseGpxData[0].type, [coordinates[0]]))
+        lines.features.push(getLineFeature(gpxName, parseGpxData[0].type, [coordinates[0]]))
         points.features.push(getPointFeature(coordinates[0]))
       }
 
 
-      map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 });
+      map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 })
       //map.current.setPitch(30);
        
       // on a regular basis, add more coordinates from the saved list and update the map
-      let i = 0;
-      var arr = Array.from({length: gpxFilenamesArray.length}, (_, index) => index);
-      var flag =0;
+      let i = 0
+      var arr = Array.from({length: gpxFilenamesArray.length}, (_, index) => index)
+      var flag = 0
+      var deletions = []
       function animate() {
         
         if (i < maxCoordsLength) {
-          
-          for (let j = 0 ; j < arr.length; j++){
-            if (flag){ 
-              console.log("new loop")
-              console.log("coord loop" + i)
-              console.log(arr)
-              console.log(arr[j])
-              console.log(points.features)
-              console.log(points.features[arr[j]])
-              flag = 0;
-            }
-            if (!!positionsResResultArray[arr[j]][i]) {
-              //console.log("["+arr[j]+"]"+"["+i+"]")
-              //console.log(positionsResResultArray[arr[j]][i])
-              geojson.features[arr[j]].geometry.coordinates.push(positionsResResultArray[arr[j]][i]);
-              //console.log(points.features[arr[j]])
-              try {
-              points.features[arr[j]].geometry.coordinates = positionsResResultArray[arr[j]][i]
-              } catch (error){
-                console.log(error)  
-                console.log(arr)
-              console.log(arr[j])
-              console.log(points.features)
-              console.log(points.features[arr[j]])
-              }
-            //pointsArray[j].features[0].geometry.coordinates = positionsResResultArray[j][i]
-            //map.current.getSource('point'+j).setData(pointsArray[j]);
+
+          featureEach(lines, function (currentFeature, featureIndex){
+            if (i == positionsResResultArray[featureIndex].length - 1){
+              deletions.push(featureIndex)
             } else {
-             // console.log("coord loop" + i)
-              //console.log(arr)
-              console.log("splicing element" + arr[j] + " at pos "+ j)
-              console.log(arr)
-
-              //test commit new branch
-
-              points.features.splice(arr[j],1)
-              arr.splice(j, 1)         
-
-              flag = 1;
-              //console.error(error);
-              // Expected output: ReferenceError: nonExistentFunction is not defined
+              currentFeature.geometry.coordinates.push(positionsResResultArray[featureIndex][i])
+              points.features[featureIndex].geometry.coordinates = positionsResResultArray[featureIndex][i]
             }
-          }
+          });
 
-          map.current.getSource('trace').setData(geojson);
+          deletions.forEach((toDelete) => {
+            lines.features.splice(toDelete,1)
+            points.features.splice(toDelete,1)
+            positionsResResultArray.splice(toDelete,1)
+          });
+          deletions = []
+
+          map.current.getSource('trace').setData(lines);
           map.current.getSource('point').setData(points);
           
           //map.current.panTo(coordinates[i]);
