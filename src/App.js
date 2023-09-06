@@ -206,6 +206,8 @@ export default function App() {
               console.log("splicing element" + arr[j] + " at pos "+ j)
               console.log(arr)
 
+              //test commit new branch
+
               points.features.splice(arr[j],1)
               arr.splice(j, 1)         
 
