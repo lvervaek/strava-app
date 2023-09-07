@@ -40,6 +40,11 @@ export default function App() {
   const [gpxData, setGpxData] = useState([]);
   const [zoom, setZoom] = useState(9);
 
+  const buttonClick = () => {
+    alert("Great Shot!");
+    // logic for reseeting animation
+  }
+
   useEffect(() => {
     if (map.current) return; // initialize map only once
     
@@ -51,27 +56,9 @@ export default function App() {
     });
     
     map.current.on('load', async () => {
-      // We fetch the JSON here so that we can parse and use it separately
-      // from GL JS's use in the added source.
-      /*console.log(process.env.PUBLIC_URL +
-        "/mygeodata/Afternoon_Run/" +
-        encodeURIComponent("tracks") +
-        ".geojson")*/
-      /*const response = await fetch(
-      'https://docs.mapbox.com/mapbox-gl-js/assets/hike.geojson'
-      );*/
-      //const resp = await fetch(
-      //  process.env.PUBLIC_URL + "/mygeodata/Afternoon_Run/Afternoon_Run.gpx"
-      //);
-      //console.log(resp)
-      //const conv = await tj.gpx(resp)
-      //console.log(conv)
 
-      var namesResultArray = [];
-      var elevationsResultArray = [];
       var positionsResResultArray = []; 
       var geojsonsArray = [];
-      var pointsArray = [];
       var maxCoordsLength = 0;
 
       // Get all gpx filenames
@@ -83,8 +70,14 @@ export default function App() {
         "features": []
       }
 
+      var linesComplete = {
+        "type": "FeatureCollection",
+        "features": []
+      }
+
       // Line
       map.current.addSource('trace', { type: 'geojson', data: lines });
+      map.current.addSource('trace2', { type: 'geojson', data: linesComplete });
       map.current.addLayer({
         'id': 'trace',
         'type': 'line',
@@ -97,10 +90,36 @@ export default function App() {
             '#42e3f5',
             'biking',
             '#fc2626',
+            'cycling',
+            '#fc2626',
             'blue'
             ],
-          'line-opacity': 0.5,
-          'line-width': 2
+          'line-opacity': 0.35,
+          'line-width': 2,
+          'line-blur': 3
+          }
+        }
+      );
+
+      map.current.addLayer({
+        'id': 'trace2',
+        'type': 'line',
+        'source': 'trace2',
+        'paint': {
+          'line-color': [
+            'match',
+            ['get', 'activitytype'],
+            'running',
+            '#42e3f5',
+            'biking',
+            '#fc2626',
+            'cycling',
+            '#fc2626',
+            'blue'
+            ],
+          'line-opacity': 0.35,
+          'line-width': 2,
+          'line-blur': 3
           }
         }
       );
@@ -178,9 +197,11 @@ export default function App() {
           });
 
           deletions.forEach((toDelete) => {
+            linesComplete.features.push(lines.features[toDelete])
             lines.features.splice(toDelete,1)
             points.features.splice(toDelete,1)
             positionsResResultArray.splice(toDelete,1)
+            map.current.getSource('trace2').setData(linesComplete);
           });
           deletions = []
 
@@ -211,7 +232,9 @@ export default function App() {
     <div>
       <div className="sidebar">
         Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}
+        <button class="button" onClick={buttonClick}>Click Me!</button>
       </div>
+      
       <div ref={mapContainer} className="map-container" />
     </div>
   );
