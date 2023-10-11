@@ -35,7 +35,6 @@ export async function maxMinNumberFromArrayOfArrays(array, keyNumber) {
   });
 }
 
-// Parse gpx file
 export async function parseGpxFile(gpxXmlFile) {
   return new Promise(async (resolve, reject) => {
     try {
@@ -131,10 +130,14 @@ export async function parseGpxFile(gpxXmlFile) {
               var eleValue = parseFloat(selectedElevationsStr);
 
               //Get time!!
-              //
-              //
-              //
-              //
+              var selectedTimeStrPosition =
+                track.indexOf("<time>") + "<time>".length;
+              var selectedTimeStrLastPosition = track.indexOf("</time>");
+              var selectedTimeStr = track.substring(
+                selectedTimeStrPosition,
+                selectedTimeStrLastPosition
+              );
+              var timeValue = new Date(selectedTimeStr);
 
               // Get latitude and longitude between double quotes from the string
               var reg = new RegExp(/"(.*?)"/g); // Double quotes included
@@ -172,10 +175,10 @@ export async function parseGpxFile(gpxXmlFile) {
               // While loop end
               if (n === latLonCount) {
                 // Remove duplicated values
-                let stringArray = arr.map(JSON.stringify);
-                let uniqueStringArray = new Set(stringArray);
-                let uniqueArray = Array.from(uniqueStringArray, JSON.parse);
-
+                //let stringArray = arr.map(JSON.stringify);
+                //let uniqueStringArray = new Set(stringArray);
+                //let uniqueArray = Array.from(uniqueStringArray, JSON.parse);
+                let uniqueArray = arr  
                 // Min and max elevations
                 const minMaxElevations = await maxMinNumberFromArrayOfArrays(
                   uniqueArray,
@@ -211,6 +214,183 @@ export async function parseGpxFile(gpxXmlFile) {
     }
   });
 }
+
+// Parse gpx file
+export async function parseGpxFileData(data) {
+  return new Promise(async (resolve, reject) => {
+          // Gpx file string
+          var gpxStr = data;
+          
+          // Count lat & lon
+          var trkCount = gpxStr.match(/<trk>/g).length;
+
+          // While loop params
+          var i = 0;
+          var resultArray = [];
+
+          while (i < trkCount) {
+            // Number of total characters
+            let totalGpxStr = gpxStr.length;
+
+            // Slice str to each <trk></trk> segment
+            let trkPosition = gpxStr.indexOf("<trk>");
+            let trkLastPosition = gpxStr.indexOf("</trk>") + "</trk>".length;
+            let trkStr = gpxStr.substring(trkPosition, trkLastPosition);
+
+            // If <trk></trk> is existing
+            if (trkPosition > 0) {
+              // Redefine the native string
+              gpxStr = gpxStr.substring(trkLastPosition, totalGpxStr);
+
+              resultArray.push(trkStr);
+            }
+
+            // Incrementation
+            i++;
+          }
+
+          // Foreach loop params
+          var resultArrObj = [];
+
+          // Get all latitudes and longitudes data for each track
+          for (let f = 0; f < resultArray.length; f++) {
+            // Variables params
+            var track = resultArray[f];
+
+            // Track's name
+            let namePosition =
+              resultArray[f].indexOf("<name>") + "<name>".length;
+            let nameLastPosition = resultArray[f].indexOf("</name>");
+            let trackName = resultArray[f].substring(
+              namePosition,
+              nameLastPosition
+            );
+
+            // Track's type
+            let typePosition =
+              resultArray[f].indexOf("<type>") + "<type>".length;
+            let typeLastPosition = resultArray[f].indexOf("</type>");
+            let trackType = resultArray[f].substring(
+              typePosition,
+              typeLastPosition
+            );  
+
+            // Params
+            var n = 0;
+            var arr = [];
+            var timeArr = [];
+
+            // Count lat & lon
+            var latLonCount = resultArray[f].match(/lat=/g).length;
+
+            while (n < latLonCount) {
+              // Number of total characters
+              let totalStr = track.length;
+
+              // Selection of string
+              var selectedStrPosition = track.indexOf("<trkpt");
+              var selectedStrLastPosition = track.indexOf("</trkpt>");
+              var selectedStr = track.substring(
+                selectedStrPosition,
+                selectedStrLastPosition
+              );
+
+              // Get elevations
+              var selectedElevationStrPosition =
+                track.indexOf("<ele>") + "<ele>".length;
+              var selectedElevationStrLastPosition = track.indexOf("</ele>");
+              var selectedElevationsStr = track.substring(
+                selectedElevationStrPosition,
+                selectedElevationStrLastPosition
+              );
+              var eleValue = parseFloat(selectedElevationsStr);
+
+              //Get time!!
+              var selectedTimeStrPosition =
+                track.indexOf("<time>") + "<time>".length;
+              var selectedTimeStrLastPosition = track.indexOf("</time>");
+              var selectedTimeStr = track.substring(
+                selectedTimeStrPosition,
+                selectedTimeStrLastPosition
+              );
+              var timeValue = new Date(selectedTimeStr);
+
+              // Get latitude and longitude between double quotes from the string
+              var reg = new RegExp(/"(.*?)"/g); // Double quotes included
+              var matches = selectedStr.match(reg);
+              var matchesArr = [];
+
+              // Record matches
+              for (let match of matches) {
+                // Match convert to number format
+                let v = parseFloat(match.replace(/['"]+/g, ""));
+
+                // Record
+                matchesArr.push(v);
+              }
+
+              // Latitude value
+              let latValue = matchesArr[0];
+
+              // Longitude value
+              let lonValue = matchesArr[1];
+
+              // If <trkpt></trkpt> is existing
+              if (selectedStrPosition > 0) {
+                // Redefine the native string
+                track = track.substring(selectedStrLastPosition + 5, totalStr);
+
+                // Record
+                arr.push([lonValue, latValue]);
+                timeArr.push(timeValue)
+                //arr.push([latValue, lonValue, eleValue]);
+              }
+
+              // Incrementation
+              n++;
+
+              // While loop end
+              if (n === latLonCount) {
+                // Remove duplicated values
+                //let stringArray = arr.map(JSON.stringify);
+                //let uniqueStringArray = new Set(stringArray);
+                //let uniqueArray = Array.from(uniqueStringArray, JSON.parse);
+                let uniqueArray = arr
+                
+                if (arr.length != uniqueArray.length){
+                  console.log("duplicates removed: ", (arr.length - uniqueArray.length))
+                }
+
+                // Min and max elevations
+                /*const minMaxElevations = await maxMinNumberFromArrayOfArrays(
+                  uniqueArray,
+                  2
+                );*/
+
+                // Result object
+                let obj = {
+                  id: f,
+                  name: trackName,
+                  type: trackType,
+                  positions: uniqueArray,
+                  times: timeArr
+                  //elevations: minMaxElevations
+                };
+
+                //console.log(obj);
+
+                // Record
+                resultArrObj.push(obj);
+              }
+            }
+
+            // For loop end
+            if (f + 1 === resultArray.length) {
+              resolve(resultArrObj);
+            }
+          }
+    });
+  }
 
 // Get min and max elevations from multiple tracks contained into a single gpx file
 export async function getMinMaxElevation(parseGpxData) {
@@ -248,15 +428,17 @@ export async function getTracksPositions(parseGpxData) {
   return new Promise(async (resolve, reject) => {
     try {
       // Params
-      var a = [];
+      var pos = [];
+      var time = [];
 
       parseGpxData.forEach((element, i) => {
         // Positions record
-        a.push(element.positions);
+        pos.push(element.positions);
+        time.push(element.times);
 
         // Foreach loop end
         if (i + 1 === parseGpxData.length) {
-          resolve(a);
+          resolve({'positions':pos,'times': time});
         }
       });
     } catch (error) {
