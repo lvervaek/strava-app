@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, setState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
-import FileUpload from "./FileUpload.tsx";
+import FileUpload from "./FileUpload.js";
 import mapboxgl from '!mapbox-gl'; // eslint-disable-line import/no-webpack-loader-syntax
 import {featureEach} from '@turf/turf'
 
@@ -39,6 +39,7 @@ function getLineFeature(name, type, coordinates) {
 export default function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const fileUploadRef = useRef();
   const [lng, setLng] = useState(null);
   const [lat, setLat] = useState(null);
   const [gpxData, setGpxData] = useState([]);
@@ -58,10 +59,16 @@ export default function App() {
     "features": []
   });
   const [positionsResResultArray, setPositionResResultArray] = useState([]);
+  const [backupResultArray, setBackupResultArray] = useState([]);
+  const [animationDisabled, setAnimationDisabled] = useState(true);
+  const [resetDisabled, setResetDisabled] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true); // Sidebar visibility state
 
   const MAX_LENGTH = 50;
 
   let i = 0;
+  let maxFPS = 60;
+  let frameCount = 0;
   var deletions = [];
   var linesComplete = {
     "type": "FeatureCollection",
@@ -69,56 +76,80 @@ export default function App() {
   }
   var upload = 0;
 
+  function updateFeatures(i) {
+      featureEach(lines, (currentFeature, featureIndex) => {
+        if (i === positionsResResultArray[featureIndex].length - 1) {
+          deletions.push(featureIndex);
+        } else {
+          currentFeature.geometry.coordinates.push(positionsResResultArray[featureIndex][i]);
+          points.features[featureIndex].geometry.coordinates = positionsResResultArray[featureIndex][i];
+        }
+      });
+  }
+
+  function deleteFeatures() {
+    deletions.forEach((toDelete) => {
+        linesComplete.features.push(lines.features[toDelete]);
+        lines.features.splice(toDelete, 1);
+        points.features.splice(toDelete, 1);
+        positionsResResultArray.splice(toDelete, 1);
+        map.current.getSource('trace2').setData(linesComplete);
+    });
+    deletions = [];
+  }
+
+  let updateCounter = 0;
   function animate() {
     if(i == 0) {
       console.log("First animate")
+      console.log(animationDisabled)
       console.log(coordsLengths)
       console.log(points)
       console.log(positionsResResultArray)
+      console.log(maxCoordsLength)
     }
+    frameCount++;
 
-    if (i < maxCoordsLength) {
-      featureEach(lines, function (currentFeature, featureIndex){
-        if (i == positionsResResultArray[featureIndex].length - 1){
-          deletions.push(featureIndex)
-        } else {
-          currentFeature.geometry.coordinates.push(positionsResResultArray[featureIndex][i])
-          points.features[featureIndex].geometry.coordinates = positionsResResultArray[featureIndex][i]
+    if((i < Math.max(...coordsLengths)) && frameCount >= Math.round(maxFPS/350)){
+        updateFeatures(i);
+        deleteFeatures();
+
+        if (updateCounter % 3 === 0) {
+            map.current.getSource('trace').setData(lines);
+            map.current.getSource('point').setData(points);
         }
-      });
-
-      deletions.forEach((toDelete) => {
-        linesComplete.features.push(lines.features[toDelete])
-        lines.features.splice(toDelete,1)
-        points.features.splice(toDelete,1)
-        positionsResResultArray.splice(toDelete,1)
-        map.current.getSource('trace2').setData(linesComplete);
-        console.log(linesComplete)
-      });
-      deletions = []
-
-      map.current.getSource('trace').setData(lines);
-      map.current.getSource('point').setData(points);
-      //map.current.panTo(coordinates[i]);
-      i++;
+        //map.current.panTo(coordinates[i]);
+        i++;
+        frameCount = 0;
+      }
+      updateCounter++;
       window.requestAnimationFrame(animate);
-    } else {
 
-    }
   }
 
-  const handleGetFilesData = (data) => {
-    console.log("wokrs"+data)
-    alert(data);
+
+  const handleGetFilesData = (fileData) => {
+    //console.log("works"+fileData)
+    for (let data of fileData){
+      positionsResResultArray.push(data.positions[0]);
+      backupResultArray.push(data.positions[0]);
+      // Save Coordinates for later  
+      const coordinates = data.positions[0];
+      
+      if (coordinates.length > maxCoordsLength) { 
+        setMaxCoordsLength(coordinates.length);
+      }
+
+      coordsLengths.push(coordinates.length)
+      lines.features.push(getLineFeature(data.name, data.type, [coordinates[0]]))
+      points.features.push(getPointFeature(coordinates[0]))
+      //increaseProgressbar(delta)
+      map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 })
+    }
+    window.requestAnimationFrame(animate);
   };
 
   const handleClose = () => setShow(false);
-
-  const buttonClick = () => {
-    // check if files have been uploaded
-    //...
-    window.requestAnimationFrame(animate);
-  }
 
   function increaseProgressbar(increase) {
     console.log("I am first")
@@ -130,77 +161,15 @@ export default function App() {
     return filename.split('.').pop()
   }
 
-  function handleMultipleChange(event) {
-    if (Array.from(event.target.files).length > MAX_LENGTH) {
-      event.preventDefault();
-      alert(`Cannot upload more than ${MAX_LENGTH} .gpx files`);
-      return;
-    }
-    if (getExtension(Array.from(event.target.files)[0]["name"]) != "gpx"){
-      event.preventDefault();
-      alert(`Can only process .gpx files`);
-      return;
-    }
-    setFiles([...event.target.files]);
-  }
-
   function diff(ary) {
     var newA = [];
     for (var i = 1; i < ary.length; i++)  newA.push(ary[i] - ary[i - 1])
     return newA;
   }
 
-  const handleMultipleSubmit = (event) => {
-    event.preventDefault();
-    setShow(true)
-    let promises = [];
-    for (let i = 0 ; i < files.length; i++){
-      let filePromise = new Promise(resolve => {
-        let reader = new FileReader();
-        reader.readAsText(files[i])    
-        reader.onload = () => resolve([reader.result, files[i].name])
-      });
-      filePromise.then(increaseProgressbar(100/files.length/2))
-      promises.push(filePromise);
-    }
-    Promise.all(promises).then(async fileContents => {
-      let delta = 100/fileContents.length/2;
-      for (let fileContent of fileContents) {
-        //console.log(fileContent)
-        const parseGpxData = await mainFunctions.parseGpxFileData(fileContent[0]);
-        const trackInfo = await mainFunctions.getTracksPositions(parseGpxData);
-        var trackPositions = trackInfo.positions;
-        var trackTimes = trackInfo.times;
-        positionsResResultArray.push(trackPositions[0]);
-
-        const counts = {};
-        for (const num of diff(trackTimes[0])) {
-          counts[num] = counts[num] ? counts[num] + 1 : 1;
-        }
-        
-        console.log(counts)
-
-        // Save Coordinates for later  
-        const coordinates = trackPositions[0];
-      
-        if (coordinates.length > maxCoordsLength) { 
-          setMaxCoordsLength(coordinates.length);
-        }
-
-        //add feature to FeatureCollection
-        //console.log("vlak na awaits")
-        //console.log(coordsLengths)
-        coordsLengths.push(coordinates.length)
-        console.log("no I am")
-        lines.features.push(getLineFeature(fileContent[1], parseGpxData[0].type, [coordinates[0]]))
-        points.features.push(getPointFeature(coordinates[0]))
-        increaseProgressbar(delta)
-        map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 })
-        //console.log(points)
-        setShow(false)
-      }
-    })
-  }
+  const toggleSidebar = () => {
+    setShowSidebar(!showSidebar);
+  };
 
   useEffect(() => {
 
@@ -233,6 +202,8 @@ export default function App() {
             'match',
             ['get', 'activitytype'],
             'running',
+            '#42e3f5',
+            'Workout',
             '#42e3f5',
             'biking',
             '#fc2626',
@@ -298,18 +269,47 @@ export default function App() {
     
   }, [lines, uploadProgress]);
 
+  const resetAnimation = () => {
+    i = 0;
+    lines.features = [];
+    points.features = [];
+    linesComplete.features = [];
+    setPositionResResultArray([]);
+    setCoordsLengths([]);
+    map.current.getSource('trace').setData(lines);
+    map.current.getSource('point').setData(points);
+    map.current.getSource('trace2').setData(linesComplete);
+    console.log(positionsResResultArray)
+    console.log(lines)
+    setAnimationDisabled(false);
+  }
+
   return (
-    <div>
-      <div className="sidebar">
-        Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}     
-        <Form onSubmit={handleMultipleSubmit}>
-          <p>Upload .gpx files and play animation!</p>
-            <Form.Control type="file" multiple onChange={handleMultipleChange} accept=".gpx"/>
-          <Button class="button" type="submit">Upload</Button>
-          <Button class="button" onClick={buttonClick}>Click Me!</Button>
-        </Form>
-        <FileUpload getFilesData={handleGetFilesData}></FileUpload>
+      <div style={{ display: 'flex' }}>
+      {/* Sidebar */}
+      <div
+        className={`sidebar ${showSidebar ? 'visible' : 'hidden'}`}
+        style={{
+          width: showSidebar ? '250px' : '0', // Adjust width based on state
+          transition: 'width 0.3s ease', // Smooth transition effect
+          overflowX: 'hidden', // Prevent content overflow when collapsed
+          backgroundColor: '#f8f9fa', // Optional styling
+        }}
+        >
+        <Button onClick={toggleSidebar} style={{ margin: '10px' }}>
+          {showSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
+        </Button>
+        {showSidebar && (
+                <>
+                    <p>Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}</p>
+                    <FileUpload getFilesData={handleGetFilesData} resetAnimation={resetAnimation} animationState={animationDisabled} setAnimationDisabled={setAnimationDisabled} resetState={resetDisabled} setResetDisabled={setResetDisabled}></FileUpload>
+                </>
+        )}
       </div>
+
+       {/* Map Container */}
+      <div ref={mapContainer} className="map-container" style={{ flex: 1, position: 'relative' }} />
+
       <Modal show={show} onHide={handleClose}>
         <Modal.Header closeButton>
           <Modal.Title>Uploading</Modal.Title>
@@ -319,7 +319,7 @@ export default function App() {
         <Modal.Footer>
         </Modal.Footer>
       </Modal>
-      <div ref={mapContainer} className="map-container" />
-    </div>
+
+      </div>
   );
 }
