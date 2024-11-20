@@ -3,8 +3,10 @@ import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
 import FileUpload from "./FileUpload.js";
+import StravaLoginButton from "./StravaFlow.js";
 import mapboxgl from '!mapbox-gl'; // eslint-disable-line import/no-webpack-loader-syntax
 import {featureEach} from '@turf/turf'
+import axios from "axios";
 
 // Main functions
 const mainFunctions = require("./main-functions");
@@ -127,7 +129,6 @@ export default function App() {
 
   }
 
-
   const handleGetFilesData = (fileData) => {
     //console.log("works"+fileData)
     for (let data of fileData){
@@ -147,6 +148,10 @@ export default function App() {
       map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 })
     }
     window.requestAnimationFrame(animate);
+  };
+
+  const handleStravaFilesData = (fileData) => {
+    handleGetFilesData(fileData);   
   };
 
   const handleClose = () => setShow(false);
@@ -203,11 +208,15 @@ export default function App() {
             ['get', 'activitytype'],
             'running',
             '#42e3f5',
+            'Run',
+            '#42e3f5',
             'Workout',
             '#42e3f5',
             'biking',
             '#fc2626',
             'cycling',
+            '#fc2626',
+            'Ride',
             '#fc2626',
             'blue'
             ],
@@ -299,6 +308,7 @@ export default function App() {
         <Button onClick={toggleSidebar} style={{ margin: '10px' }}>
           {showSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
         </Button>
+        <StravaLoginButton getStravaData={handleStravaFilesData}></StravaLoginButton>
         {showSidebar && (
                 <>
                     <p>Longitude: {lng} | Latitude: {lat} | Zoom: {zoom}</p>

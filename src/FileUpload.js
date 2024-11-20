@@ -98,7 +98,7 @@ export const FileUpload = ({
             duration: (trackInfo.times[0][trackInfo.times[0].length - 1] - trackInfo.times[0][0])
           }
           //console.log(trackInfo)
-          //console.log(fileData)
+          console.log("Filedata: ", fileData)
           filesData.push(fileData)
           
           //setShow(false)
