@@ -3,6 +3,7 @@ import { AppContext } from "../context/AppContext.js";
 import axios from "axios";
 import Button from 'react-bootstrap/Button';
 import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
+import { Strava } from 'react-bootstrap-icons';
 
 function StravaSection() {
 
@@ -47,7 +48,7 @@ function StravaSection() {
 const fetchTracks = () => {
     if (!accessToken) return;
 
-    axios.get("https://www.strava.com/api/v3/athlete/activities?per_page=10", {
+    axios.get("https://www.strava.com/api/v3/athlete/activities?per_page=20", {
         headers: {
             Authorization: `Bearer ${accessToken}`,
         },
@@ -93,7 +94,7 @@ const fetchTracks = () => {
     };
     
     return (
-    <SubMenu defaultOpen label="Strava Connection" >
+    <SubMenu defaultOpen icon={<Strava color="#fc4c02" />} >
         <MenuItem> 
           {accessToken ? (
                 <div>

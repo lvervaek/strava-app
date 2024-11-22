@@ -7,7 +7,7 @@ import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
 
 function SidebarMenu() {
   return (
-    <Sidebar>
+    <Sidebar width="80px">
             <Menu menuItemStyles={{
             button: ({ level, active, disabled }) => {
               // only apply styles on first level elements of the tree

@@ -15,7 +15,7 @@ function App() {
         style={{
           position: "absolute",
           top: 0,
-          left: 0,
+          left: -15,
           //width: "300px", // Sidebar width
           height: "100%", // Full height
           backgroundColor: "rgba(255, 255, 255, 0.2)", // Semi-transparent background
@@ -24,6 +24,20 @@ function App() {
         }}
       >
         <SidebarMenu />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 50,
+          //width: "300px", // Sidebar width
+          height: "100%", // Full height
+          backgroundColor: "rgba(255, 255, 255, 0)", // Semi-transparent background
+          zIndex: 10, // Ensures it stays on top
+          overflowY: "auto", // Allow scrolling if content overflows
+        }}
+      >
+
       </div>
     </div>
   </AppContextProvider>
