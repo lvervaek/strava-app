@@ -1,7 +1,9 @@
-import React, { useContext, useEffect } from "react";
-import { AppContext } from "./AppContext"; // Import the AppContext
+import React, { useContext, useRef, useEffect, useState, setState } from "react";
+import { AppContext } from "./context/AppContext"; // Import the AppContext
 import mapboxgl from "mapbox-gl"; // Import Mapbox GL JS
+import {featureEach} from '@turf/turf'
 import "mapbox-gl/dist/mapbox-gl.css"; // Import Mapbox CSS
+import { gpx } from "@mapbox/togeojson";
 
 // Main functions
 const mainFunctions = require("./main-functions");
@@ -65,7 +67,6 @@ function MapContainer() {
         "type": "FeatureCollection",
         "features": []
     }
-    var upload = 0;
 
     function updateFeatures(i) {
         featureEach(lines, (currentFeature, featureIndex) => {
@@ -94,6 +95,7 @@ function MapContainer() {
     function animate() {
         if(i == 0) {
             console.log("First animate")
+            initializeData();
             console.log(animationDisabled)
             console.log(coordsLengths)
             console.log(points)
@@ -116,6 +118,45 @@ function MapContainer() {
         }
         updateCounter++;
         window.requestAnimationFrame(animate);
+    };
+
+    function initializeData() {
+        console.log("gpxData: ", gpxData)
+        for (let data of gpxData){
+            console.log("pos: ", data.positions)
+            console.log("len: ", data.positions.length)
+            if(data.positions[0].length > 0) {
+                positionsResResultArray.push(data.positions[0]);
+                backupResultArray.push(data.positions[0]);
+                // Save Coordinates for later  
+                const coordinates = data.positions[0];
+                
+                if (coordinates.length > maxCoordsLength) { 
+                setMaxCoordsLength(coordinates.length);
+                }
+        
+                coordsLengths.push(coordinates.length)
+                lines.features.push(getLineFeature(data.name, data.type, [coordinates[0]]))
+                points.features.push(getPointFeature(coordinates[0]))
+            }
+        }
+        console.log("PosResArray: ", positionsResResultArray)
+        map.current.jumpTo({ 'center': positionsResResultArray[0][0], 'zoom': 14 })
+    };
+
+    function resetAnimation() {
+        i = 0;
+        lines.features = [];
+        points.features = [];
+        linesComplete.features = [];
+        setPositionResResultArray([]);
+        setCoordsLengths([]);
+        map.current.getSource('trace').setData(lines);
+        map.current.getSource('point').setData(points);
+        map.current.getSource('trace2').setData(linesComplete);
+        console.log(positionsResResultArray)
+        console.log(lines)
+        setAnimationDisabled(false);
     };
 
     useEffect(() => {
@@ -185,9 +226,15 @@ function MapContainer() {
                   ['get', 'activitytype'],
                   'running',
                   '#42e3f5',
+                  'Run',
+                  '#42e3f5',
+                  'Workout',
+                  '#42e3f5',
                   'biking',
                   '#fc2626',
                   'cycling',
+                  '#fc2626',
+                  'Ride',
                   '#fc2626',
                   'blue'
                   ],
@@ -224,24 +271,15 @@ function MapContainer() {
             setZoom(map.current.getZoom().toFixed(2));
           });
           
-    }, [lines, uploadProgress]);
+    }, [lines]);
   
-    return <div id="map" className="map-container"></div>;
-  }
-
-  const resetAnimation = () => {
-    i = 0;
-    lines.features = [];
-    points.features = [];
-    linesComplete.features = [];
-    setPositionResResultArray([]);
-    setCoordsLengths([]);
-    map.current.getSource('trace').setData(lines);
-    map.current.getSource('point').setData(points);
-    map.current.getSource('trace2').setData(linesComplete);
-    console.log(positionsResResultArray)
-    console.log(lines)
-    setAnimationDisabled(false);
+    return (
+        <div
+        ref={mapContainer}
+        className="map-container"
+        style={{ height: "100%", width: "100%", position: "relative" }}
+      />
+    );
   }
   
   export default MapContainer;
