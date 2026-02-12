@@ -3,13 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@mapbox/togeojson": "^0.16.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@tmcw/togeojson": "^5.8.1",
-    "@turf/turf": "^6.5.0",
-    "@xmldom/xmldom": "^0.8.10",
     "axios": "^1.7.7",
     "bootstrap": "^5.3.2",
     "mapbox-gl": "^2.15.0",
@@ -18,7 +15,6 @@
     "react-bootstrap-icons": "^1.11.4",
     "react-bootstrap-validation": "^0.1.11",
     "react-dom": "^18.2.0",
-    "react-pro-sidebar": "^1.1.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },

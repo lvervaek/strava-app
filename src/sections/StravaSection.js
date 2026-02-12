@@ -1,111 +1,183 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { AppContext } from "../context/AppContext.js";
 import axios from "axios";
-import Button from 'react-bootstrap/Button';
-import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
-import { Strava } from 'react-bootstrap-icons';
+import Spinner from "react-bootstrap/Spinner";
+import { Strava } from "react-bootstrap-icons";
+
+const isMobile = () => window.innerWidth <= 768;
 
 function StravaSection() {
+  const { addTracks } = useContext(AppContext);
+  const clientId = process.env.REACT_APP_STRAVA_CLIENT_ID;
+  const redirectUri = window.location.origin + window.location.pathname;
 
-    const [filesData, setFilesData] = useState([]);
-    const { gpxData, setGpxData, startAnimation } = useContext(AppContext);
-    const clientId = "140154";
-    const clientSecret = "4a2b5a3cc0b97ad64418e98b80edf4bd42993262";
-    const redirectUri = "http://localhost:3000/callback"; // e.g., http://localhost:3000/callback
+  const [accessToken, setAccessToken] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null); // "fetching" | "done" | "error"
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const pollTimerRef = useRef(null);
 
-    const [accessToken, setAccessToken] = useState(null);
+  // On mount: check if returning from a same-tab Strava redirect (mobile flow)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const wasRedirecting = sessionStorage.getItem("stravaRedirect");
 
-    // Redirect to Strava's OAuth2 authorization page
-    const loginWithStrava = () => {
-        const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=activity:read_all`;
-        window.location.href = stravaAuthUrl;
+    if (code && wasRedirecting) {
+      sessionStorage.removeItem("stravaRedirect");
+      window.history.replaceState({}, document.title, redirectUri);
+      exchangeCodeForToken(code);
+    }
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-     // Handle the authorization code from the URL (callback)
-     useEffect(() => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
+  const loginWithStrava = () => {
+    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=activity:read_all`;
 
-      if (code && !accessToken) {
-          // Exchange the authorization code for an access token
-          axios.post("https://www.strava.com/oauth/token", {
-              client_id: clientId,
-              client_secret: clientSecret,
-              code: code,
-              grant_type: "authorization_code",
-          })
-          .then(response => {
-              setAccessToken(response.data.access_token);
-              console.log("Access token:", response.data.access_token);
-          })
-          .catch(error => {
-              console.error("Error exchanging code for token:", error);
-          });
+    if (isMobile()) {
+      sessionStorage.setItem("stravaRedirect", "true");
+      window.location.href = stravaAuthUrl;
+      return;
+    }
+
+    const popup = window.open(stravaAuthUrl, "stravaAuth", "width=600,height=700");
+
+    pollTimerRef.current = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(pollTimerRef.current);
+          return;
+        }
+        const popupUrl = popup.location.href;
+        if (popupUrl.startsWith(redirectUri)) {
+          const params = new URLSearchParams(popup.location.search);
+          const code = params.get("code");
+          popup.close();
+          clearInterval(pollTimerRef.current);
+          if (code) {
+            exchangeCodeForToken(code);
+          }
+        }
+      } catch {
+        // Cross-origin error while popup is on Strava domain — ignore
       }
-    }, [accessToken]);
-
-// Fetch GPX tracks after logging in
-const fetchTracks = () => {
-    if (!accessToken) return;
-
-    axios.get("https://www.strava.com/api/v3/athlete/activities?per_page=20", {
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-        },
-    })
-    .then(response => {
-        console.log("User activities:", response.data);
-        return streamGpx(response.data); // Ensure we return the promise from streamGpx
-    })
-    .then(gpxData => {
-        console.log("All GPX data:", gpxData); // This is where the fully resolved data will be available
-        setGpxData(gpxData);
-    })
-    .catch(error => {
-        console.error("Error fetching activities or GPX data:", error);
-    });
-};
-
-    function streamGpx(activities){
-        const promises = activities.map(activity => {
-            const activityId = activity.id;
-            return axios.get(`https://www.strava.com/api/v3/activities/${activityId}/streams?keys=latlng&key_by_type=true`, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-            })
-            .then(response => {
-                const latlngData = response.data.latlng?.data || [];
-                return {
-                    name: activityId,
-                    positions: [latlngData.map(([a, b]) => [b, a])], // Swap latitude and longitude
-                    times: 0,
-                    type: activity.type,
-                    duration: activity.elapsed_time,
-                };
-            })
-            .catch(error => {
-                console.error(`Error downloading GPX for activity ${activityId}:`, error);
-                return null; // Return null or a placeholder in case of an error
-            });
-        });
-    
-        // Wait for all promises to resolve
-        return Promise.all(promises)
-            .then(results => results.filter(data => data !== null)); // Filter out null values from failed requests
-    };
-    
-    return (
-    <SubMenu defaultOpen icon={<Strava color="#fc4c02" />} >
-        <MenuItem> 
-          {accessToken ? (
-                <div>
-                <Button onClick={fetchTracks}>Fetch GPX Tracks</Button>
-              </div>
-          ) : (
-              <Button onClick={loginWithStrava}>Log in with Strava</Button>
-          )}
-        </MenuItem>
-      </SubMenu>
-    );
+    }, 500);
   };
+
+  const exchangeCodeForToken = (code) => {
+    setLoading(true);
+    setStatus("fetching");
+    axios
+      .post("/api/strava-token", { code })
+      .then((response) => {
+        const token = response.data.access_token;
+        setAccessToken(token);
+        return fetchTracks(token);
+      })
+      .catch((error) => {
+        console.error("Error exchanging code for token:", error);
+        setLoading(false);
+        setStatus("error");
+      });
+  };
+
+  const fetchTracks = (token) => {
+    const authToken = token || accessToken;
+    if (!authToken) return;
+
+    setLoading(true);
+    setStatus("fetching");
+
+    return axios
+      .get("https://www.strava.com/api/v3/athlete/activities?per_page=75", {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      .then((response) => {
+        const activities = response.data.filter(
+          (a) => a.type !== "VirtualRide" && a.start_latlng && a.start_latlng.length === 2
+        );
+        return streamGpx(activities, authToken);
+      })
+      .then((tracks) => {
+        addTracks(tracks);
+        setLoading(false);
+        setStatus("done");
+      })
+      .catch((error) => {
+        console.error("Error fetching activities:", error);
+        setLoading(false);
+        setStatus("error");
+      });
+  };
+
+  function streamGpx(activities, authToken) {
+    const total = activities.length;
+    let done = 0;
+    setProgress({ done: 0, total });
+
+    const promises = activities.map((activity) => {
+      const activityId = activity.id;
+      return axios
+        .get(
+          `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=latlng&key_by_type=true`,
+          { headers: { Authorization: `Bearer ${authToken}` } }
+        )
+        .then((response) => {
+          done++;
+          setProgress({ done, total });
+          const latlngData = response.data.latlng?.data || [];
+          return {
+            name: activity.name || activityId,
+            positions: [latlngData.map(([a, b]) => [b, a])],
+            times: 0,
+            type: activity.type,
+            duration: activity.elapsed_time,
+          };
+        })
+        .catch((error) => {
+          done++;
+          setProgress({ done, total });
+          console.error(`Error fetching stream for activity ${activityId}:`, error);
+          return null;
+        });
+    });
+
+    return Promise.all(promises).then((results) =>
+      results.filter((data) => data !== null && data.positions[0].length > 0)
+    );
+  }
+
+  return (
+    <div>
+      {loading ? (
+        <div style={{ color: "#aaa", fontSize: "0.8rem" }}>
+          <Spinner animation="border" size="sm" className="me-2" />
+          {progress.total > 0
+            ? `Fetching ${progress.done}/${progress.total} activities...`
+            : "Connecting..."}
+        </div>
+      ) : accessToken ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="sidebar-action-btn" onClick={() => fetchTracks()}>
+            <Strava size={16} />
+            <span>Fetch again</span>
+          </button>
+          {status === "done" && (
+            <span style={{ color: "#6f6", fontSize: "0.75rem" }}>Done!</span>
+          )}
+        </div>
+      ) : (
+        <button className="sidebar-action-btn sidebar-action-btn--strava" onClick={loginWithStrava}>
+          <Strava size={16} />
+          <span>Connect with Strava</span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default StravaSection;
