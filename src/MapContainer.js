@@ -63,7 +63,7 @@ function findDensestStart(tracks) {
 
 function MapContainer() {
     const {
-      gpxData, isAnimating, setIsAnimating,
+      gpxData, isAnimating,
       shouldReset, setShouldReset, playbackSpeed, isPaused, setMapRef,
       colorScheme, isExporting,
       setAnimationProgress, seekFraction, setSeekFraction
